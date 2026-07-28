@@ -1,0 +1,14 @@
+# pixi environments
+.pixi/*
+!.pixi/config.toml
+.vscode/
+.pixi
+.DS_Store
+
+# folders to ignore
+data/
+results/
+
+# folders in scripts
+scripts/__pycache__/
+scripts/node_modules
