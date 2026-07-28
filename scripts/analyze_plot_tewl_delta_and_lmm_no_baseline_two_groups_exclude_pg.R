@@ -6,8 +6,7 @@ library(ggplot2)
 library(lme4)
 library(lmerTest)
 
-root_dir <- "/Users/ree/Documents/01 my research/01 bed rest study/BRACE Bed Rest"
-tewl_dir <- file.path(root_dir, "Processed data", "04 - TEWAMETER")
+tewl_dir <- "data/Processed data/04 - TEWAMETER"
 input_file <- file.path(tewl_dir, "TEWL_processed_raw_window.xlsx")
 
 output_delta_plot <- file.path(tewl_dir, "TEWL_delta_percent_BDC_HDTE_HDTM_HDTL_two_groups_exclude_PG_R.png")
