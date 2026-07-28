@@ -1,3 +1,5 @@
+# Analyze corneometer hydration LMM
+
 library(readxl)
 library(lmerTest)
 library(emmeans)
