@@ -4,11 +4,17 @@
 .vscode/
 .pixi
 .DS_Store
+**/.DS_Store
+Rplots.pdf
 
 # folders to ignore
 data/
 results/
+results_legacy/
+docs/papers/
 
 # folders in scripts
 scripts/__pycache__/
 scripts/node_modules
+scripts_legacy/__pycache__/
+scripts_legacy/node_modules
