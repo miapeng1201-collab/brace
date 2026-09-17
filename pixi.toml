@@ -5,6 +5,7 @@ platforms = ["osx-arm64"]
 version = "0.1.0"
 
 [tasks]
+install-amelia = { cmd = "Rscript -e 'remotes::install_github(\"IQSS/Amelia\")'" }
 
 [dependencies]
 r-readxl = ">=1.5.0,<2"
@@ -14,3 +15,4 @@ r-tidyverse = ">=2.0.0,<3"
 r-emmeans = ">=2.0.4,<3"
 r-writexl = ">=1.5.4,<2"
 r-lme4 = ">=2.0_6,<3"
+r-remotes = ">=2.5.0,<3"
