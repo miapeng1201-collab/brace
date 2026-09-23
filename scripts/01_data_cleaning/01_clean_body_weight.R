@@ -137,21 +137,21 @@ str(daily_c2)
 daily_bw_merged <- bind_rows(daily_c1_clean, daily_c2_clean)
 names(daily_bw_merged)
 
-daily_bw_merged <- daily_bw_merged |> 
+daily_bw_merged2 <- daily_bw_merged |> 
 left_join(
     lookup_clean |> 
       select(ID, stage_key, Group),
     by = c("ID","stage_key")
   )
 
-names(daily_bw_merged)
-head(daily_bw_merged)
-dim(daily_bw_merged)
-dim(daily_bw_merged)
-str(daily_bw_merged)
+names(daily_bw_merged2)
+head(daily_bw_merged2)
+dim(daily_bw_merged2)
+dim(daily_bw_merged2)
+str(daily_bw_merged2)
 
-write_csv(daily_bw_merged, file.path(daily_output_dir, "daily_body_weight_clean.csv"))
-saveRDS(daily_bw_merged, file.path(daily_output_dir,"daily_body_weight_clean.RDS"))
+write_csv(daily_bw_merged2, file.path(daily_output_dir, "daily_body_weight_clean.csv"))
+saveRDS(daily_bw_merged2, file.path(daily_output_dir,"daily_body_weight_clean.RDS"))
 
 #### DEXA body composition ####
 colnames(dexa) <- colnames(dexa) |> str_to_lower() |> str_replace_all( " ", "_")
