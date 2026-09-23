@@ -93,8 +93,12 @@ bp_daily_C1_clean <- bp_daily_C1 |>
     }
   )
 
-df <- df %>%
-  mutate(
+head(bp_daily_C1_clean)
+names(bp_daily_C1_clean)
+dim(bp_daily_C1_clean)
+
+timepoint_means <- bp_daily_C1_clean |> 
+  transmute(
     # Morning means
     systolic_AM_mean   = mean_available(systolic_AM_1, systolic_AM_2, systolic_AM_3),
     diastolic_AM_mean  = mean_available(diastolic_AM_1, diastolic_AM_2, diastolic_AM_3),
@@ -120,8 +124,8 @@ df <- df %>%
     heart_rate_PM_n = n_available(heart_rate_PM_1, heart_rate_PM_2)
   )
 
-df <- df |> 
-  mutate(
+daily_means <- timepoint_means |> 
+  transmute(
     systolic_day_mean   = daily_mean(systolic_AM_mean, systolic_PM_mean),
     diastolic_day_mean  = daily_mean(diastolic_AM_mean, diastolic_PM_mean),
     mean_bp_day_mean    = daily_mean(mean_bp_AM_mean, mean_bp_PM_mean),
@@ -133,11 +137,10 @@ df <- df |>
     heart_rate_day_n = heart_rate_AM_n + heart_rate_PM_n
   )
 
-head(bp_daily_C1_clean)
-names(bp_daily_C1_clean)
-dim(bp_daily_C1_clean)
+head(timepoint_means)
+head(daily_means)
 
-head(summary_df)
+
 
 names(bp_daily_C2)
 bp_daily_C2_AM <- bp_daily_C2 |>
@@ -249,60 +252,3 @@ by = c("cohort", "ID", "Stage", "stage_key", "StudyDay")
 dim(bp_daily_clean)
 
 names(bp_daily_clean)
-
-
-
-##combine fina arm_cuff
-arm_cuff_files <- list.files(
-  "data/Original_data/03 - FINAPRESS",
-  pattern = "Arm Cuff\\.csv$",
-  recursive = TRUE,
-  full.names = TRUE
-)
-
-length(arm_cuff_files)
-
-read_arm_cuff <- function(file) {
-  read_delim(
-    file,
-    delim = ";",
-    skip = 7,
-    col_types = cols(.default = col_character()),
-    show_col_types = FALSE
-  ) |>
-    mutate(source_file = file)
-}
-arm_cuff_all <- map_dfr(arm_cuff_files, read_arm_cuff)
-
-dim(arm_cuff_all)
-str(arm_cuff_all)
-
-bp_fina_clean <- arm_cuff_all |>
-  mutate(
-    cohort = str_match(source_file, "/(C[12])/")[, 2],
-
-    Subject = str_match(
-      source_file,
-      "/(?:COMBINED|RawData)/([A-Z])/"
-    )[, 2],
-
-    ID = as.factor(str_c("BRACE_", Subject)),
-
-    Stage = str_extract(
-      source_file,
-      "(?:BDC-?\\d+|HDT\\d+|R\\+?\\d+)"
-    ),
-
-    stage_key = normalize_stage_key(Stage),
-
-    StudyDay = as.factor(make_study_day(stage_key)),
-    systolic= as.numeric(`SYS Arm(mmHg)`),
-mean_bp = as.numeric(`MAP Arm(mmHg)`),
-diastolic = as.numeric(`DIA Arm(mmHg)`),
-heart_rate= as.numeric(`HR Arm(bpm)`)
-
-  )|>
-  select(source_file, cohort, Subject, ID, Stage, stage_key, StudyDay,systolic,mean_bp,diastolic ,heart_rate) 
-
-dim(bp_fina_clean)
-str(bp_fina_clean)
