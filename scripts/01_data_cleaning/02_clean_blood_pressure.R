@@ -1,6 +1,17 @@
-# Blood pressure data cleaning
+# Daily blood pressure data cleaning
 # X. Peng
 #
+# This script processes daily blood-pressure measurements from the vital-signs datasets for Cohort 1 and Cohort 2
+#
+# Measurements include:
+# 1. Systolic blood pressure
+# 2. Diastolic blood pressure
+# 3. Mean arterial pressure
+# 4. Heart rate
+#
+# Workflow:raw C1 and C2 vital-sign data -> cohort-specific cleaned blood-pressure tables -> combined daily blood-pressure table
+
+
 
 # Libraries
 library(tidyverse)
@@ -56,6 +67,9 @@ names(bp_daily_C1)
 names(bp_daily_C2)
 names(lookup_clean)
 
+
+
+### clean C1
 head(bp_daily_C1)
 
 bp_daily_C1_clean <- bp_daily_C1 |> 
@@ -97,7 +111,7 @@ head(bp_daily_C1_clean)
 names(bp_daily_C1_clean)
 dim(bp_daily_C1_clean)
 
-timepoint_means <- bp_daily_C1_clean |> 
+timepoint_means_C1 <- bp_daily_C1_clean |> 
   transmute(
     # Morning means
     systolic_AM_mean   = mean_available(systolic_AM_1, systolic_AM_2, systolic_AM_3),
@@ -124,7 +138,7 @@ timepoint_means <- bp_daily_C1_clean |>
     heart_rate_PM_n = n_available(heart_rate_PM_1, heart_rate_PM_2)
   )
 
-daily_means <- timepoint_means |> 
+daily_means_C1  <- timepoint_means_C1 |> 
   transmute(
     systolic_day_mean   = daily_mean(systolic_AM_mean, systolic_PM_mean),
     diastolic_day_mean  = daily_mean(diastolic_AM_mean, diastolic_PM_mean),
@@ -137,11 +151,11 @@ daily_means <- timepoint_means |>
     heart_rate_day_n = heart_rate_AM_n + heart_rate_PM_n
   )
 
-head(timepoint_means)
-head(daily_means)
+head(timepoint_means_C1 )
+head(daily_means_C1 )
 
 
-
+##clean C2
 names(bp_daily_C2)
 bp_daily_C2_AM <- bp_daily_C2 |>
   filter(
@@ -234,13 +248,36 @@ bp_daily_C2_clean <- full_join(
   by = c("cohort", "ID", "Stage", "stage_key", "StudyDay")
 )
 
+timepoint_means_C2 <- bp_daily_C2_clean |>
+  transmute(
+    systolic_AM_mean = mean_available(systolic_AM_1, systolic_AM_2, systolic_AM_3),
+    diastolic_AM_mean = mean_available(diastolic_AM_1, diastolic_AM_2, diastolic_AM_3),
+    mean_bp_AM_mean = mean_available(mean_bp_AM_1, mean_bp_AM_2, mean_bp_AM_3),
+    heart_rate_AM_mean = mean_available(heart_rate_AM_1, heart_rate_AM_2, heart_rate_AM_3),
 
-names(bp_daily_C2_clean)
+    systolic_AM_n = n_available(systolic_AM_1, systolic_AM_2, systolic_AM_3),
+    diastolic_AM_n = n_available(diastolic_AM_1, diastolic_AM_2, diastolic_AM_3),
+    mean_bp_AM_n = n_available(mean_bp_AM_1, mean_bp_AM_2, mean_bp_AM_3),
+    heart_rate_AM_n = n_available(heart_rate_AM_1, heart_rate_AM_2, heart_rate_AM_3),
 
-dim(bp_daily_C2)
+    systolic_PM_mean = mean_available(systolic_PM_1, systolic_PM_2, systolic_PM_3),
+    diastolic_PM_mean = mean_available(diastolic_PM_1, diastolic_PM_2, diastolic_PM_3),
+    mean_bp_PM_mean = mean_available(mean_bp_PM_1, mean_bp_PM_2, mean_bp_PM_3),
+    heart_rate_PM_mean = mean_available(heart_rate_PM_1, heart_rate_PM_2, heart_rate_PM_3),
 
-dim(bp_daily_C1_clean)
-dim(bp_daily_C2_clean)
+    systolic_PM_n = n_available(systolic_PM_1, systolic_PM_2, systolic_PM_3),
+    diastolic_PM_n = n_available(diastolic_PM_1, diastolic_PM_2, diastolic_PM_3),
+    mean_bp_PM_n = n_available(mean_bp_PM_1, mean_bp_PM_2, mean_bp_PM_3),
+    heart_rate_PM_n = n_available(heart_rate_PM_1, heart_rate_PM_2, heart_rate_PM_3)
+  )
+
+
+
+
+
+
+
+
 
 ## find the differences
 setdiff(names(bp_daily_C1_clean), names(bp_daily_C2_clean))

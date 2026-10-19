@@ -32,7 +32,7 @@ make_study_day <- function(stage_key) {
 }
 
 #### Output directories ####
-processed_dir <- "data/processed_data/body_weight"
+processed_dir <- "data/processed_data/01body_weight"
 daily_output_dir <- file.path(processed_dir, "daily_body_weight")
 dexa_output_dir <- file.path(processed_dir, "dexa_body_composition")
 mri_output_dir <- file.path(processed_dir, "mri_muscle")
@@ -177,21 +177,27 @@ saveRDS(dexa_merged, file.path(dexa_output_dir, "dexa_clean.RDS"))
 #### MRI thigh muscle ####
 colnames(mri) <- colnames(mri) |> str_replace_all("%", "percent") |> str_replace_all(" ", "_")
 colnames(mri)
+str(mri)
 
 mri_clean <- mri |> 
-  mutate(ID = str_c("BRACE_", subject_long),
+  transmute(ID = str_c("BRACE_", subject_long ),
           Group= case_when(
             group_long == "AGB" ~ "Exercise_Gravity",
             group_long == "B" ~ "Exercise",
             group_long == "CTRL" ~ "Control",
             TRUE ~ group_long
           ),
-          Timepoint = timepoint_long,
+         StudyDay= recode(
+     timepoint_long,
+      "POST" = "Intervention_52",
+      "PRE"  = "Baseline_min9"
+    ),
           total_thigh_fat_free_muscle_volume_l = tot_volume,
           total_thigh_muscle_fat_infiltration_percent = tot_percent
-) |> 
-  select(-subject_long, -group_long, -timepoint_long)
-
+) 
+names(mri_clean)
+str(mri_clean)
 write_csv(mri_clean, file.path(mri_output_dir, "body_weight_mri_clean.csv"))
 saveRDS(mri_clean, file.path(mri_output_dir, "body_weight_mri_clean.RDS"))
+
 
