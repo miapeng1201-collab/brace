@@ -168,6 +168,9 @@ nutrition_clean <- nutrition_raw |>
   
 str(nutrition_clean)
 
+#nutrition_clean |>count(cohort, ID, StudyDay) |>filter(n > 1)
+#Special dietary intervention days: BDC-9, HDT30, HDT31, and HDT57 (VLCD or ad libitum food intake).
+
 
 # clean liquid balance data.
 

@@ -1,100 +1,20 @@
 # Finapres data cleaning
 # X. Peng
-# This script processes two Finapres data sources:
-# 1. Arm cuff blood pressure measurements from all available CSV files
-# 2. Session-level hemodynamic measurements from Finapress.xlsx
+# This script extracts arm-cuff blood pressure measurements from the
+# participant-level Finapres overview workbooks for cohorts 1 and 2.
+
+
 
 
 # Libraries
 library(tidyverse)
 library(readxl)
 
-
-##combine fina arm_cuff
-
-##open data 
-arm_cuff_files <- list.files( "data/Original_data/03 - FINAPRESS",
-  pattern = "Arm Cuff\\.csv$",
-  recursive = TRUE,
-  full.names = TRUE
-)
-
-#### Output directories ####
+#Output directory 
 finapress_output_dir <- "data/processed_data/03_finapress"
 dir.create(finapress_output_dir, recursive = TRUE, showWarnings = FALSE)
 
-
-length(arm_cuff_files)
-
-# Read and combine all Arm Cuff CSV files.
-# Extract cohort, subject, and study stage from each file path.
-read_arm_cuff <- function(file) {
-  read_delim(
-    file,
-    delim = ";",
-    skip = 7,
-    col_types = cols(.default = col_character()),
-    show_col_types = FALSE
-  ) |>
-    mutate(source_file = file)
-}
-arm_cuff_all <- map_dfr(arm_cuff_files, read_arm_cuff)
-
-dim(arm_cuff_all)
-str(arm_cuff_all)
-
-bp_fina_clean <- arm_cuff_all |>
-  mutate(
-    cohort = str_match(source_file, "/(C[12])/")[, 2],
-
-    Subject = str_match(
-      source_file,
-      "/(?:COMBINED|RawData)/([A-Z])/"
-    )[, 2],
-
-    ID = as.factor(str_c("BRACE_", Subject)),
-
-    Stage = str_extract(
-      source_file,
-      "(?:BDC-?\\d+|HDT\\d+|R\\+?\\d+)"
-    ),
-
-    stage_key = normalize_stage_key(Stage),
-
-    StudyDay = as.factor(make_study_day(stage_key)),
-    systolic= as.numeric(`SYS Arm(mmHg)`),
-mean_bp = as.numeric(`MAP Arm(mmHg)`),
-diastolic = as.numeric(`DIA Arm(mmHg)`),
-heart_rate= as.numeric(`HR Arm(bpm)`)
-
-  )|>
-  select(source_file, cohort, Subject, ID, Stage, stage_key, StudyDay,systolic,mean_bp,diastolic ,heart_rate) 
-
-dim(bp_fina_clean)
-str(bp_fina_clean)
-
-write_csv(
-  bp_fina_clean,
-  file.path(finapress_output_dir, "finapress_blood_pressure_clean.csv")
-)
-
-saveRDS(
-  bp_fina_clean,
-  file.path(finapress_output_dir, "finapress_blood_pressure_clean.RDS")
-)
-
-
-## clean hemodynamic measurements
-
-## Open data ##
-
-finapress_hemodynamics <- read_excel(file.path( "data/Original_data/03 - FINAPRESS/Finapress.xlsx")
- )
-
-
-str(finapress_hemodynamics)
-finapress_hemodynamics$Group
-
+# Functions
 normalize_stage_key <- function(stage) {
   stage |> 
     str_replace_all("[-+]", "") |> 
@@ -111,32 +31,142 @@ make_study_day <- function(stage_key) {
 }
 
 
+#Open data
+finapress_overview_files <- list.files(
+  "data/Original_data/03 - FINAPRESS",
+  pattern = "^[A-Z]_Overview_Finapress[.]xlsx$",
+  recursive = TRUE,
+  full.names = TRUE
+)
 
-finapress_hemodynamic_clean <- finapress_hemodynamics |> 
- transmute(
-ID = as.factor(str_c("BRACE_",Subject)),
-  stage_key = normalize_stage_key(Stage),
-  StudyDay = make_study_day(stage_key),
-  Group= case_when(
-        Group == "ExAG" ~ "Exercise_Gravity",
-        Group == "Ex" ~ "Exercise",
-        TRUE ~ Group
-  ), 
-  across(-c(    Subject, Stage, stage_key,Nr,Day2,Date
-  )) )
+length(finapress_overview_files)
+
+lookup_clean <- readRDS(
+  "data/processed_data/lookup/lookup_table.RDS"
+)
+
+#combine 
+
+read_armcuff_overview <- function(file) {
+  read_excel(
+    file,
+    sheet = 1,
+
+    # 只读取 Measurement、Time(sec) 和 Marker
+    col_types = c(
+      "skip",          # Source.Name
+      "text",          # Measurement
+      "text",          # Time(sec)
+      rep("skip", 16), # 中间的血流动力学变量
+      "text",          # Marker
+      "skip"           # Region
+    )
+  ) |>
+    filter(
+      str_detect(
+        coalesce(Marker, ""),
+        "^ArmCuff:"
+      )
+    ) |>
+    transmute(
+      source_file = file,
+
+      cohort = str_match(
+        file,
+        "/(C[12])/"
+      )[, 2],
+
+      Subject = str_match(
+        basename(file),
+        "^([A-Z])_"
+      )[, 2],
+
+      Measurement,
+
+      `Time(sec)` = parse_double(`Time(sec)`),
+
+      Marker
+    )
+}
 
 
-str(finapress_hemodynamic_clean)
+armcuff_all <- map_dfr(
+  finapress_overview_files,
+  read_armcuff_overview
+)
 
-# Save clean data
+str(armcuff_all)
+
+armcuff_all$Marker
+
+bp_fina_clean <- armcuff_all |>
+  mutate(
+    ID = str_c("BRACE_", Subject),
+
+    Stage = str_extract(
+      Measurement,
+      "(?:BDC-?[0-9]+|HDT[0-9]+|R[+]?[0-9]+)"
+    ),
+
+    stage_key = normalize_stage_key(Stage),
+    StudyDay = make_study_day(stage_key),
+
+    armcuff_value = str_extract_all(
+      Marker,
+      "[0-9.]+/[0-9.]+"
+    )
+  ) |>
+  unnest_longer(
+    armcuff_value,
+    indices_to = "armcuff_reading"
+  ) |>
+  separate_wider_delim(
+    armcuff_value,
+    delim = "/",
+    names = c("systolic", "diastolic")
+  ) |>
+  mutate(
+    systolic = as.numeric(systolic),
+    diastolic = as.numeric(diastolic),
+    mean_bp = (systolic + 2 * diastolic) / 3
+  ) |>
+  select(
+    source_file,
+    cohort,
+    Subject,
+    ID,
+    Stage,
+    stage_key,
+    StudyDay,
+    Measurement,
+    `Time(sec)`,
+    armcuff_reading,
+    Marker,
+    systolic,
+    mean_bp,
+    diastolic
+  )
+
+# str(bp_fina_clean)
+
+
+
+
+
+
+#### Save clean data ####
 write_csv(
-  finapress_hemodynamic_clean,
-  file.path(finapress_output_dir , "finapress_hemodynamic_clean.csv")
+  bp_fina_clean,
+  file.path(
+    finapress_output_dir,
+    "finapress_blood_pressure_clean.csv"
+  )
 )
 
 saveRDS(
-  finapress_hemodynamic_clean,
-  file.path(finapress_output_dir , "finapress_hemodynamic_clean.RDS")
+  bp_fina_clean,
+  file.path(
+    finapress_output_dir,
+    "finapress_blood_pressure_clean.RDS"
+  )
 )
-
-  
