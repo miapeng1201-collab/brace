@@ -6,6 +6,13 @@
 #
 # The source Excel sheet contains several tables placed side by side.
 # Only the first table, containing the re-measured raw urine results,is used for the clean dataset.
+#
+# Manual corrections and 24-hour calculations:
+# - Correct D's visit on 13 April 2023 to BDC7.
+# - U HDT46 and HDT49 have no evening urine collection; retain the
+#   available period data but exclude these days from 24-hour calculations.
+# - Calculate 24-hour urine volume as the sum of mo, dt, and ev volumes,
+#   and calculate 24-hour concentrations using volume-weighted means.
 
 
 
@@ -22,32 +29,9 @@ dir.create(
   recursive = TRUE,
   showWarnings = FALSE
 )
-
-
 # open data 
-
 urine_raw <- read_excel("data/Original_data/01 - GENERAL DATA/06 - URINE/Urine_Remeasured.xlsx")
-lookup_cleanlookup_clean <- readRDS(
-  "data/processed_data/lookup/lookup_table.RDS"
-)
-
-
-
-# function
-normalize_stage_key <- function(stage) {
-  stage |>
-    str_replace_all("[-+]", "") |>
-    str_replace_all("\\s+", "") |>
-    str_to_upper()
-}
-
-make_study_day <- function(stage_key) {
-  case_when(
-    str_detect(stage_key, "BDC") ~ str_replace(stage_key, "BDC", "Baseline_min"),
-    str_detect(stage_key, "HDT") ~ str_replace(stage_key, "HDT", "Intervention_"),
-    str_detect(stage_key, "R") ~ str_replace(stage_key, "R", "Recovery_")
-  )
-}
+lookup_clean <- readRDS("data/processed_data/lookup/lookup_table.RDS")
 
 
  
@@ -59,6 +43,10 @@ urine_main <- urine_raw[-1, 1:20]
 names(urine_main) <- as.character(
   urine_raw[1, 1:20]
 )
+
+# Remove rows with no data in any column
+urine_main <- urine_main |>
+  filter(!if_all(everything(), is.na))
 
 
 ## U   HDT46 HDT49  No evening urine     
@@ -72,11 +60,27 @@ urine_main |>
 
 
 urine_clean <- urine_main |>
+  filter(!is.na(Subject), !is.na(Period)) |>
+  # Correct D's visit label on 13 April 2023
+  mutate(
+    Day = if_else(
+      Subject == "D" &
+        as.Date(as.numeric(Date), origin = "1899-12-30") == as.Date("2023-04-13"),
+      "BDC7",
+      Day
+    ),
+    stage_key = Day |>
+      str_replace_all("[-+]", "") |>
+      str_replace_all("\\s+", "") |>
+      str_to_upper()
+  ) |>
   transmute(
     ID = as.factor(str_c("BRACE_", Subject)),
 
-    StudyDay = make_study_day(
-      normalize_stage_key(Day)
+    StudyDay = case_when(
+      str_detect(stage_key, "BDC") ~ str_replace(stage_key, "BDC", "Baseline_min"),
+      str_detect(stage_key, "HDT") ~ str_replace(stage_key, "HDT", "Intervention_"),
+      str_detect(stage_key, "R") ~ str_replace(stage_key, "R", "Recovery_")
     ),
 
     Date = as.Date(
@@ -109,9 +113,42 @@ urine_clean <- urine_main |>
     by = c("ID", "StudyDay")
   )
 
-str(urine_clean)
+# Exclude U HDT46 and HDT49 from 24-hour calculations
+urine_24h <- urine_clean |>
+  filter(
+    period %in% c("mo", "dt", "ev"),
+    !(ID == "BRACE_U" &
+        StudyDay %in% c("Intervention_46", "Intervention_49"))
+  ) |>
+  group_by(ID, StudyDay, Date, Group) |>
+  summarise(
+    across(
+      urea_mg_dl:chloride_mmol_l,
+      ~ sum(.x * urine_volume) / sum(urine_volume)
+    ),
+    urine_volume = sum(urine_volume),
+    period = "24h",
+    comments = "Calculated from mo, dt, and ev.",
+    .groups = "drop"
+  )
 
+# Replace existing 24-hour records for recalculated days
+recalculated_days <- urine_clean |>
+  filter(period %in% c("mo", "dt", "ev")) |>
+  distinct(ID, StudyDay)
 
+urine_clean <- bind_rows(
+  urine_clean |>
+    filter(period != "24h"),
+  urine_clean |>
+    filter(period == "24h") |>
+    anti_join(recalculated_days, by = c("ID", "StudyDay")),
+  urine_24h
+)
+
+# Check record counts by collection period
+urine_clean |>
+  count(period)
 # Save 
 write_csv(
   urine_clean,
@@ -122,3 +159,4 @@ saveRDS(
   urine_clean,
   file.path(urine_output_dir, "urine_clean.RDS")
 )
+
