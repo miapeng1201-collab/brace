@@ -312,6 +312,9 @@ tewameter_qc <- tewameter_qc |>
 tewameter_qc |>
   count(cv_status)
 
+# Identify measurements requiring manual curve review
+tewl_cv_review <- tewameter_qc |>
+  filter(is.finite(cv_pct), cv_pct > 7.5)
 
 # Extract the complete time series for one selected measurement
 extract_tewl_curve <- function(file, measurement_id) {
