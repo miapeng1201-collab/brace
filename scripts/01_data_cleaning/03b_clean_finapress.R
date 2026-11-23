@@ -355,20 +355,45 @@ finapres_final_results |>
 
 
 
-# Prepare lookup information
-finapres_final_results <- finapres_final_results |>
-  mutate(stage_key = str_remove_all(Stage, "[-+]"))
-finapres_lookup <- lookup_clean |>
-  transmute(
-    Subject = as.character(Subject),
-    stage_key,
-    ID,
-    Group,
-    StudyDay,
-    Day,
-    Date
-  ) |>
+# Prepare subject-level groups for unmatched visits
+subject_groups <- lookup_clean |>
+  transmute(Subject = as.character(Subject), Group) |>
+  filter(!is.na(Group)) |>
   distinct()
+
+# Refresh visit information and fill missing groups from subject-level data
+finapres_final_results <- finapres_final_results |>
+  select(-any_of(c(
+    "ID", "Group", "StudyDay", "Day", "Date", "DateTime", "Group_subject"
+  ))) |>
+  select(-matches("^(ID|Group|StudyDay|Day|Date|DateTime)\\.[xy]$")) |>
+  left_join(
+    lookup_clean |>
+      transmute(
+        Subject = as.character(Subject),
+        stage_key,
+        ID,
+        Group,
+        StudyDay,
+        Day,
+        Date,
+        DateTime
+      ) |>
+      distinct(),
+    by = c("Subject", "stage_key"),
+    relationship = "many-to-one"
+  ) |>
+  left_join(
+    subject_groups,
+    by = "Subject",
+    suffix = c("", "_subject"),
+    relationship = "many-to-one"
+  ) |>
+  mutate(Group = coalesce(Group, Group_subject)) |>
+  select(-Group_subject) |>
+  relocate(Subject, ID, Group, Stage, stage_key, StudyDay, Day, Date, DateTime) |>
+  arrange(ID, Day, Stage, Measurement)
+names(finapres_final_results)
 
 # Save final results
 saveRDS(
