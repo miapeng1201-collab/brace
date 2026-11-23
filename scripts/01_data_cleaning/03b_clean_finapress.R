@@ -7,18 +7,16 @@
 # manual window selections and exclusions.
 
 # Workflow:
-# 1. Extract C1 files using the F BDC-6 backup, skipping misplaced G R1 files.
-# 2. Select nine variables from C1 and C2; exclude N_Merger_AHD files.
-# 3. Select 200–20 s before each file ends and check against the latest BraCal.
-# 4. Calculate means and valid/missing counts without removing outliers.
-# 5. Use manual windows for A HDT19 (330–390 s) and M HDT7 (510–540 s); 
+# Select nine variables from C1 and C2; exclude N_Merger_AHD files.
+# Select 200–20 s before each file ends and check against the latest BraCal.
+# Calculate means and valid/missing counts without removing outliers.
+# Use manual windows for A HDT19 (330–390 s) and M HDT7 (510–540 s); 
 # exclude N BDC-6 for poor recording quality
-# 6. Standardize subject/visit labels, match lookup information, and save results.
+# Standardize subject/visit labels, match lookup information, and save results.
 
 
 # Libraries ----
 library(tidyverse)
-library(readxl)
 
 # Output directories ----
 finapress_output_dir <- "data/processed_data/03_finapress"
@@ -27,50 +25,9 @@ dir.create(finapress_output_dir, recursive = TRUE, showWarnings = FALSE)
 # Open data ----
 finapres_root <- "data/Original_data/03 - FINAPRESS"
 lookup_clean <- readRDS("data/processed_data/lookup/lookup_table.RDS")
-
-## Locate C1 raw CSV archives
-c1_zip_files <- list.files(path = file.path(finapres_root, "C1", "RawData", "CSV RAW"),pattern = "\\.zip$",full.names = TRUE,
-  recursive = TRUE,
-  ignore.case = TRUE
+c1_extract_dir <- file.path(
+  finapres_root, "C1", "RawData", "CSV EXTRACTED"
 )
-# Replace the damaged F BDC-6 archive with its readable backup
-damaged_zip <- file.path(
-  finapres_root, "C1", "RawData", "CSV RAW", "F",
-  "BRACE_SALT_FINAPRES_RAW_CSV_F_BDC-6_20230415.zip"
-)
-
-backup_zip <- file.path(
-  finapres_root, "C1", "RawData", "CSV RAW", "F",
-  "dubbel_BRACE_SALT_FINAPRES_RAW_CSV_F_BDC-6_20230415.zip"
-)
-
-c1_zip_files[c1_zip_files == damaged_zip] <- backup_zip
-c1_zip_files <- unique(c1_zip_files)
-# c1 extracted
-c1_extract_dir <- file.path(finapres_root, "C1", "RawData", "CSV EXTRACTED")
-dir.create(c1_extract_dir, recursive = TRUE, showWarnings = FALSE)
-
-# Extract C1 files, excluding misplaced G R1 copies
-for (zip_file in c1_zip_files) {
-  extract_folder <- file.path(
-    c1_extract_dir,
-    tools::file_path_sans_ext(basename(zip_file))
-  )
-  files <- unzip(zip_file, list = TRUE)$Name
-  if (basename(zip_file) ==
-      "BRACE_SALT_FINAPRES_RAW_CSV_H_HDT55_20230615.zip") {
-    files <- files[
-      !startsWith(basename(files), "G SALT R+1 220623")
-    ]
-  }
-  message("Extracting: ", basename(zip_file))
-  unzip(
-    zipfile = zip_file,
-    files = files,
-    exdir = extract_folder
-  )
-}
-
 # Find the nine selected variables 
 finapres_raw_files <- list.files(
   path = c(
@@ -248,16 +205,11 @@ finapres_time_results <- map_dfr(
 
 dim(finapres_time_results)
 
+# Identify records requiring manual window selection
 finapres_time_results |>
   count(window_status)
 
-# Identify records requiring manual window selection
 
-table(finapres_time_results$window_status, useNA = "ifany")
-finapres_manual_review <- finapres_time_results |>
-  filter(window_status != "after_bracal")
-
-finapres_manual_review
 # Manual review is required for 63 variable files across seven recordings.
 # C1: A HDT19, B HDT25, I HDT19, I HDT31, and M HDT7.
 # C2: N BDC-6 and N R6.
@@ -326,6 +278,18 @@ manual_results |>
     manual_n_valid, manual_n_missing, manual_mean
   )
 
+# Identify N BDC-6 records excluded after manual review
+finapres_excluded <- finapres_time_results |>
+  filter(
+    str_detect(
+      file,
+      fixed("BRACE_SALT_FINAPRES_RAW_CSV_N_BDC-6_")
+    )
+  ) |>
+  mutate(
+    exclusion_reason =
+      "Poor signal quality; no reliable analysis window identified."
+  )
 # Apply manual results and preserve the original window information
 finapres_final_results <- finapres_time_results |>
   anti_join(finapres_excluded, by = "file") |>
@@ -357,6 +321,7 @@ finapres_final_results <- finapres_time_results |>
     -manual_start_s, -manual_stop_s,
     -manual_n_valid, -manual_n_missing, -manual_mean
   )
+
 
 # Extract subject and visit identifiers
 finapres_final_results <- finapres_final_results |>
