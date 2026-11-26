@@ -6,21 +6,15 @@
 # Use the readable F BDC-6 backup and skip misplaced G R1 files
 # in the H HDT55 archive. skipping misplaced G R1 files.
 
-# Libraries ----
-library(tidyverse)
-
 # Output directories ----
-finapress_output_dir <- "data/processed_data/03_finapress"
-dir.create(
-  finapress_output_dir,
-  recursive = TRUE,
-  showWarnings = FALSE
-)
+c1_extract_dir <- file.path("data/Original_data/03 - FINAPRESS", "C1", "RawData", "CSV EXTRACTED")
+dir.create(c1_extract_dir, recursive = TRUE, showWarnings = FALSE)
 
 # Open data ----
 finapres_root <- "data/Original_data/03 - FINAPRESS"
 
-c1_extract_dir <- file.path(finapres_root, "C1", "RawData", "CSV EXTRACTED")
+
+
 
 ## Locate C1 raw CSV archives
 c1_zip_files <- list.files(path = file.path(finapres_root, "C1", "RawData", "CSV RAW"),pattern = "\\.zip$",full.names = TRUE,
@@ -41,9 +35,7 @@ backup_zip <- file.path(
 c1_zip_files[c1_zip_files == damaged_zip] <- backup_zip
 c1_zip_files <- unique(c1_zip_files)
 
-# c1 extracted
-c1_extract_dir <- file.path(finapres_root, "C1", "RawData", "CSV EXTRACTED")
-dir.create(c1_extract_dir, recursive = TRUE, showWarnings = FALSE)
+
 
 # Extract C1 files, excluding misplaced G R1 copies
 for (zip_file in c1_zip_files) {
